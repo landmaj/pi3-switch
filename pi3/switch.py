@@ -49,6 +49,9 @@ def swap_two_screen(i3, outputs, new_workspace):
     outputs.remove(active_output)
     second_output = outputs.pop()
 
+    if new_workspace == old_workspace['name']:
+        sys.exit(0)
+
     i3.command(
         "[workspace={}] move workspace to {}"
         .format(old_workspace["name"], second_output))
