@@ -8,12 +8,15 @@ setup(
     description='This simple program will switch to the given i3 workspace '
                 'with slightly different behavior if there are two outputs.',
     long_description=long_description,
-    version='0.2.5',
+    version='0.3.1',
     license='MIT',
     author='Michał Wieluński',
     author_email='michal@landmaj.pl',
     url='https://gitlab.com/landmaj/pi3-switch',
-    install_requires=['i3ipc==1.5.1'],
+    install_requires=[
+        'i3ipc==1.5.1',
+        'pynput==1.4',
+    ],
     packages=['pi3'],
     zip_safe=True,
     entry_points={

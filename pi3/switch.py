@@ -1,9 +1,9 @@
 import argparse
 import logging
 import sys
-from time import sleep
 
 import i3ipc
+import pynput
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +49,15 @@ def swap_two_screen(i3, outputs, new_workspace):
     if new_workspace == old_workspace['name']:
         sys.exit(0)
 
+    mouse = pynput.mouse.Controller()
+    cursor_position = mouse.position
     i3.command("move workspace to {}".format(second_output))
     i3.command(
         "[workspace={}] move workspace to {}"
         .format(new_workspace, active_output)
     )
-    # without this i3 will not focus the new workspace
-    sleep(0.10)
     i3.command("workspace {}".format(new_workspace))
+    mouse.position = cursor_position
 
 
 if __name__ == "__main__":
