@@ -6,5 +6,8 @@ setup(
     license='MIT',
     author='Michał "landmaj" Wieluński',
     author_email='michal@landmaj.pl',
-    install_requires=['i3ipc==1.5.1']
+    install_requires=['i3ipc==1.5.1'],
+    entry_points={
+        'console_scripts': ['pi3-switch = pi3.switch:main']
+    }
 )
