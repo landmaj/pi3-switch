@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+from time import sleep
 
 import i3ipc
 
@@ -29,10 +30,6 @@ def main():
     ]
     workspaces = [workspace['name'] for workspace in i3.get_workspaces()]
 
-    if new_workspace not in workspaces:
-        logger.warning("Workspace '{}' does not exist".format(new_workspace))
-        sys.exit(1)
-
     if len(outputs) == 2 and len(workspaces) > 1:
         swap_two_screen(i3, outputs, new_workspace)
     else:
@@ -52,15 +49,13 @@ def swap_two_screen(i3, outputs, new_workspace):
     if new_workspace == old_workspace['name']:
         sys.exit(0)
 
-    i3.command(
-        "[workspace={}] move workspace to {}"
-        .format(old_workspace["name"], second_output))
+    i3.command("move workspace to {}".format(second_output))
     i3.command(
         "[workspace={}] move workspace to {}"
         .format(new_workspace, active_output)
     )
-
-    i3.command("workspace {}".format(old_workspace["name"]))
+    # without this i3 will not focus the new workspace
+    sleep(0.10)
     i3.command("workspace {}".format(new_workspace))
 
 

@@ -8,7 +8,7 @@ setup(
     description='This simple program will switch to the given i3 workspace '
                 'with slightly different behavior if there are two outputs.',
     long_description=long_description,
-    version='0.1.0',
+    version='0.2.5',
     license='MIT',
     author='Michał Wieluński',
     author_email='michal@landmaj.pl',
