@@ -38,13 +38,16 @@ def swap_two(i3, outputs, new_workspace):
     cursor_position = mouse.position
 
     current_output = get_current_output(mouse.position, outputs)
-    current_workspace = outputs[current_output]["current_workspace"]
+    for output in outputs:
+        if output["name"] == current_output:
+            current_workspace = output["current_workspace"]
 
     if new_workspace == current_workspace:
         sys.exit(0)
 
+    outputs = [output["name"] for output in outputs]
     outputs.remove(current_output)
-    second_output = outputs[0]["name"]
+    second_output = outputs[0]
 
     if not is_workspace_empty(i3, current_workspace):
         i3.command("move workspace to {}".format(second_output))
