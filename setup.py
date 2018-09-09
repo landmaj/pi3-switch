@@ -1,14 +1,13 @@
 from setuptools import setup
 
-with open("README.md", "r") as fh:
+with open("README.rst", "r") as fh:
     long_description = fh.read()
 
 setup(
     name="pi3-switch",
-    description="This simple program will switch to the given i3 workspace "
-    "with slightly different behavior if there are two outputs.",
+    description="More advanced workspace switcher for i3.",
     long_description=long_description,
-    version="0.4.1",
+    version="0.5.0",
     license="MIT",
     author="Michał Wieluński",
     author_email="michal@landmaj.pl",

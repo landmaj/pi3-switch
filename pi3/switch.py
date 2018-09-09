@@ -8,104 +8,198 @@ import pynput
 logger = logging.getLogger(__name__)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Activates i3 workspace on the focused output. "
-        "If there are two outputs, current workspace will "
-        "be moved to the second (not focuses) output."
-    )
-    parser.add_argument("workspace", type=str, help="name of the i3 workspace")
-    args = parser.parse_args()
-    new_workspace = args.workspace
+class WorkspaceSwitcher:
+    def __init__(self, args):
+        try:
+            self.i3 = i3ipc.Connection()
+        except Exception as exc:
+            logger.error("Could not connect to i3: {}".format(exc))
+            sys.exit(1)
 
-    try:
-        i3 = i3ipc.Connection()
-    except Exception as exc:
-        logger.error("Could not connect to i3: {}".format(exc))
-        sys.exit(1)
+        self.args = args
 
-    outputs = [output for output in i3.get_outputs() if output["active"] is True]
-    workspaces = [workspace["name"] for workspace in i3.get_workspaces()]
+        self.workspaces = [workspace for workspace in self.i3.get_workspaces()]
+        self.outputs = [
+            output for output in self.i3.get_outputs() if output["active"] is True
+        ]
 
-    if len(outputs) == 2 and len(workspaces) > 1:
-        swap_two(i3, outputs, new_workspace)
-    else:
-        i3.command("workspace {}".format(args.workspace))
+        self.mouse = pynput.mouse.Controller()
+        self.mouse_position = self.mouse.position
 
+        self.new_workspace_name = args.workspace
+        if args.focus:
+            self.current_output_name = self._get_output_from_focused_window()
+        else:
+            self.current_output_name = self._get_output_from_cursor_position()
 
-def swap_two(i3, outputs, new_workspace):
-    mouse = pynput.mouse.Controller()
-    cursor_position = mouse.position
+    def _restore_cursor_position(self):
+        self.mouse.position = self.mouse_position
 
-    current_output = get_current_output(mouse.position, outputs)
-    for output in outputs:
-        if output["name"] == current_output:
-            current_workspace = output["current_workspace"]
+    def _is_workspace_on_current_output(self):
+        for workspace in self.workspaces:
+            if workspace.name == self.new_workspace_name:
+                return workspace["output"] == self.current_output_name
+        return False
 
-    if new_workspace == current_workspace:
+    def _is_workspace_occupied(self, current_workspace_name):
+        workspaces = [con for con in self.i3.get_tree() if con.type == "workspace"]
+        for workspace in workspaces:
+            if (
+                workspace.name == current_workspace_name
+                and len(workspace.descendents()) == 0
+            ):
+                return False
+        return True
+
+    def _get_output_from_focused_window(self):
+        workspace_name = self.i3.get_tree().find_focused().workspace().name
+        for output in self.outputs:
+            if output["current_workspace"] == workspace_name:
+                return output["name"]
+
+    def _get_output_from_cursor_position(self):
+        for output in self.outputs:
+            width = output["rect"]["width"]
+            height = output["rect"]["height"]
+            x_offset = output["rect"]["x"]
+            y_offset = output["rect"]["y"]
+
+            if x_offset == 0 and y_offset == 0:
+                if (
+                    x_offset <= self.mouse_position[0] <= x_offset + width
+                    and y_offset <= self.mouse_position[1] <= y_offset + height
+                ):
+                    return output["name"]
+            elif x_offset == 0:
+                if (
+                    x_offset <= self.mouse_position[0] <= x_offset + width
+                    and y_offset < self.mouse_position[1] <= y_offset + height
+                ):
+                    return output["name"]
+            elif y_offset == 0:
+                if (
+                    x_offset < self.mouse_position[0] <= x_offset + width
+                    and y_offset <= self.mouse_position[1] <= y_offset + height
+                ):
+                    return output["name"]
+            else:
+                if (
+                    x_offset < self.mouse_position[0] <= x_offset + width
+                    and y_offset < self.mouse_position[1] <= y_offset + height
+                ):
+                    return output["name"]
+
+    def simple_switch(self):
+        # If the selected workspace does not exist or is already on the
+        # current output, do not move it. This also catches the case
+        # if there is only one output.
+        if (
+            self.new_workspace_name in [ws["name"] for ws in self.workspaces]
+            and not self._is_workspace_on_current_output()
+        ):
+            self.i3.command(
+                "[workspace={}] move workspace to {}".format(
+                    self.new_workspace_name, self.current_output_name
+                )
+            )
+        self.i3.command("workspace {}".format(self.new_workspace_name))
+
+        self._restore_cursor_position()
         sys.exit(0)
 
-    outputs = [output["name"] for output in outputs]
-    outputs.remove(current_output)
-    second_output = outputs[0]
+    def push_to_secondary(self, master_only=False):
+        # this method only works for two outputs
+        if len(self.outputs) != 2:
+            self.simple_switch()
 
-    if not is_workspace_empty(i3, current_workspace):
-        i3.command("move workspace to {}".format(second_output))
+        for output in self.outputs:
+            if output["name"] == self.current_output_name:
+                current_workspace_name = output["current_workspace"]
 
-    i3.command(
-        "[workspace={}] move workspace to {}".format(new_workspace, current_output)
-    )
-    i3.command("workspace {}".format(new_workspace))
-    mouse.position = cursor_position
+        if self.new_workspace_name == current_workspace_name:
+            sys.exit(0)
 
+        for output in self.outputs:
+            if output["name"] != self.current_output_name:
+                second_output = output["name"]
+                secondary_is_master = output["primary"]
+                break
 
-def is_workspace_empty(i3, current_workspace):
-    """
-    Returns True if workspace_name does not have any containers.
-    """
+        # Do not move current workspace if it is empty to avoid pushing
+        # newly created workspaces around or if master-slave is enabled.
+        if self._is_workspace_occupied(current_workspace_name) and not (
+            secondary_is_master and master_only
+        ):
+            self.i3.command("move workspace to {}".format(second_output))
 
-    workspaces = [con for con in i3.get_tree() if con.type == "workspace"]
-    for workspace in workspaces:
-        if workspace.name == current_workspace and len(workspace.descendents()) == 0:
-            return True
-    return False
+        # We can skip moving workspace and avoid flickering if
+        # it is already on that output.
+        if not self._is_workspace_on_current_output():
+            self.i3.command(
+                "[workspace={}] move workspace to {}".format(
+                    self.new_workspace_name, self.current_output_name
+                )
+            )
 
+        self.i3.command("workspace {}".format(self.new_workspace_name))
 
-def get_current_output(mouse_position, outputs):
-    """
-    Returns currently focused output based on the cursor position.
-    """
+        self._restore_cursor_position()
+        sys.exit(0)
 
-    for output in outputs:
-        width = output["rect"]["width"]
-        height = output["rect"]["height"]
-        width_offset = output["rect"]["x"]
-        height_offset = output["rect"]["y"]
+    def swap(self):
+        raise NotImplementedError
 
-        if width_offset == 0 and height_offset == 0:
-            if (
-                width_offset <= mouse_position[0] <= width_offset + width
-                and height_offset <= mouse_position[1] <= height_offset + height
-            ):
-                return output["name"]
-        elif width_offset == 0:
-            if (
-                width_offset <= mouse_position[0] <= width_offset + width
-                and height_offset < mouse_position[1] <= height_offset + height
-            ):
-                return output["name"]
-        elif height_offset == 0:
-            if (
-                width_offset < mouse_position[0] <= width_offset + width
-                and height_offset <= mouse_position[1] <= height_offset + height
-            ):
-                return output["name"]
+    def switch_workspace(self):
+        if self.args.master:
+            self.push_to_secondary(master_only=True)
+        elif self.args.push:
+            self.push_to_secondary()
+        elif self.args.swap:
+            self.swap()
         else:
-            if (
-                width_offset < mouse_position[0] <= width_offset + width
-                and height_offset < mouse_position[1] <= height_offset + height
-            ):
-                return output["name"]
+            self.simple_switch()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Moves selected i3 workspace to the current output "
+        "(by default determined by cursor location) and focuses it."
+    )
+
+    parser.add_argument("workspace", type=str, help="name of the i3 workspace")
+    parser.add_argument(
+        "-f",
+        "--focus",
+        action="store_true",
+        help="use focused window instead of cursor "
+        "position to determine the current output",
+    )
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "-p",
+        "--push",
+        action="store_true",
+        help="moves replaced workspace to the second output "
+        "(works only if there are two outputs, ignored otherwise)",
+    )
+    group.add_argument(
+        "-m",
+        "--master",
+        action="store_true",
+        help="same as 'push' but will only move from "
+        "primary output to the secondary",
+    )
+    group.add_argument(
+        "-s",
+        "--swap",
+        action="store_true",
+        help="(NOT IMPLEMENTED YET) behaves like xmonad, swaps workspaces "
+        "if they are on a different output",
+    )
+
+    args = parser.parse_args()
+    WorkspaceSwitcher(args).switch_workspace()
 
 
 if __name__ == "__main__":
