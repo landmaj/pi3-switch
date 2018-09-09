@@ -8,7 +8,7 @@ In any other setup (one, three or more outputs) it will behave exactly the same 
 
 Usage
 -----
-```bash
+```
 pi3-switch WORKSPACE_NAME
 ```
 
@@ -16,13 +16,13 @@ Installation
 ------------
 Install using [pipsi](https://github.com/mitsuhiko/pipsi) (recommended) or pip
 
-```bash
+```
 pipsi install pi3-switch
 ```
 
 Add keybindings to ~/.config/i3/config and reload i3
 
-```bash
+```
 bindsym $mod+1 exec pi3-switch 1
 bindsym $mod+2 exec pi3-switch 2
 bindsym $mod+3 exec pi3-switch 3

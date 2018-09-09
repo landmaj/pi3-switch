@@ -1,7 +1,8 @@
 repos:
 - repo: https://gitlab.com/landmaj/githooks.git
-  rev: v1.0.0
+  rev: v1.1.0
   hooks:
   - id: autoflake
   - id: seed-isort-config
   - id: isort
+  - id: black
