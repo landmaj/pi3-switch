@@ -1,5 +1,5 @@
 repos:
-- repo: https://gitlab.com/landmaj/githooks.git
+- repo: https://github.com/Landmaj/py-commit-hooks.git
   rev: v1.1.0
   hooks:
   - id: autoflake
